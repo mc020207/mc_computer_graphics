@@ -1,0 +1,89 @@
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>lab1:音频可视化 马成 20307130112</title>
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+</head>
+
+<body>
+    <input type="file" style="color:red;" name="" value="" id="musicFile"/>
+    <input type="button" name="startStop" value="暂停" id="startStop"/>
+    <p id="tip" style="color:red;"></p>
+    <canvas id="canvas"></canvas>
+    <script>
+        window.onload = function() {
+            canvas.width = window.innerWidth-40;
+            canvas.height = window.innerHeight-100;
+            var canvasCtx = canvas.getContext("2d");
+
+            var AudioContext = window.AudioContext || window.webkitAudioContext || window.mozAudioContext;
+            var audioContext = new AudioContext(); //实例化
+
+            $('#musicFile').change(function() {
+                //当选择歌曲时，判断当前audioContext的状态，如果在进行中则关闭音频环境，
+                //释放audioContext的所有资源，并重新实例化audioContext
+                if (audioContext.state == 'running') {
+                    audioContext.close();
+                    audioContext = new AudioContext();
+                }
+                if (this.files.length == 0) return;
+                var file = $('#musicFile')[0].files[0];
+                var fileReader = new FileReader();
+                fileReader.readAsArrayBuffer(file);
+                fileReader.onload = function(e) {
+                    var count = 0;
+                    audioContext.decodeAudioData(e.target.result, function(buffer) {
+                        var audioBufferSourceNode = audioContext.createBufferSource();
+                        var analyser = audioContext.createAnalyser();
+                        analyser.fftSize = 1024;
+                        audioBufferSourceNode.connect(analyser);
+                        analyser.connect(audioContext.destination);
+                        audioBufferSourceNode.buffer = buffer;
+                        audioBufferSourceNode.start();
+                        var bufferLength = analyser.frequencyBinCount;
+                        var dataArray = new Uint8Array(bufferLength);
+                        //播放暂停音频
+                        startStop.onclick = function() {
+                            if (audioContext.state === 'running') {
+                                audioContext.suspend().then(function() {
+                                    $("#startStop").val('播放');
+                                });
+                            } else if (audioContext.state === 'suspended') {
+                                audioContext.resume().then(function() {
+                                    $("#startStop").val('暂停');
+                                });
+                            }
+                        }
+                        
+                        var oW = canvas.width;
+                        var oH = canvas.height;
+                        var color1 = canvasCtx.createLinearGradient(oW , oH  - 10, oW , oH  - 150);
+                        color1.addColorStop(0, '#000000');
+
+                        function draw() {
+                            drawVisual = requestAnimationFrame(draw);
+                            var barHeight;
+                            // 自定义获取数组里边数据的频步
+                            canvasCtx.clearRect(0, 0, oW, oH);
+                            for (var i = 0; i < bufferLength; i++) {
+                                barHeight = dataArray[i]*2;
+                                analyser.getByteFrequencyData(dataArray);
+                                // 绘制向上的线条
+                                canvasCtx.fillStyle = color1;
+                                /* context.fillRect(x,y,width,height)
+                                 * x，y是坐标
+                                 * width，height线条的宽高
+                                 */
+                                canvasCtx.fillRect(oW  - (i * 3), oH, 2, -barHeight);
+                            }
+                        };
+                        draw();
+                    })
+                }
+            })
+        }
+    </script>
+</body>
+
+</html>
